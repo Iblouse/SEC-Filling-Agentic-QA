@@ -1,0 +1,10 @@
+aws_region  = "us-east-1"
+project_name = "sec-filing-agentic-qa"
+owner        = "ibrahima"
+
+log_retention_days = 14
+force_destroy_buckets = true
+
+enable_monthly_budget = false
+monthly_budget_usd     = 25
+budget_email           = ""
