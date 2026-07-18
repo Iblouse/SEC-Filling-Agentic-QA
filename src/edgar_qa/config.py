@@ -19,17 +19,32 @@ class Settings(BaseSettings):
     sec_timeout_seconds: float = Field(default=30.0, gt=0)
     data_dir: Path = Path("data")
 
+    aws_region: str = "us-east-1"
+    aws_raw_bucket: str = ""
+    aws_ingestion_queue_url: str = ""
+
     @field_validator("sec_user_agent")
     @classmethod
     def validate_sec_user_agent(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError(
-                "SEC_USER_AGENT is required. Use 'Your Name your.email@example.com'."
-            )
+            raise ValueError("SEC_USER_AGENT is required. Use 'Your Name your.email@example.com'.")
         if "@" not in cleaned:
             raise ValueError("SEC_USER_AGENT must include a contact email address.")
         return cleaned
+
+    def require_aws_discovery_settings(self) -> None:
+        missing: list[str] = []
+        if not self.aws_raw_bucket.strip():
+            missing.append("AWS_RAW_BUCKET")
+        if not self.aws_ingestion_queue_url.strip():
+            missing.append("AWS_INGESTION_QUEUE_URL")
+        if missing:
+            joined = ", ".join(missing)
+            raise ValueError(
+                f"Missing AWS discovery configuration: {joined}. "
+                "Load the values from Terraform outputs."
+            )
 
 
 def get_settings() -> Settings:

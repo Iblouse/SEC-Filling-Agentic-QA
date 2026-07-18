@@ -65,7 +65,7 @@ class SecClient:
             transport=transport,
         )
 
-    def __enter__(self) -> "SecClient":
+    def __enter__(self) -> SecClient:
         return self
 
     def __exit__(self, *_: object) -> None:
@@ -85,9 +85,7 @@ class SecClient:
         response = self._client.get(url)
 
         if response.status_code == 429 or 500 <= response.status_code < 600:
-            raise SecRequestError(
-                f"Transient SEC response {response.status_code} for {url}."
-            )
+            raise SecRequestError(f"Transient SEC response {response.status_code} for {url}.")
 
         try:
             response.raise_for_status()
@@ -110,9 +108,7 @@ class SecClient:
 
     def get_company_submissions(self, cik: str | int) -> dict[str, Any]:
         normalized_cik = self.normalize_cik(cik)
-        return self._get_json(
-            f"{SEC_DATA_BASE_URL}/submissions/CIK{normalized_cik}.json"
-        )
+        return self._get_json(f"{SEC_DATA_BASE_URL}/submissions/CIK{normalized_cik}.json")
 
     def build_manifest(
         self,
@@ -122,6 +118,22 @@ class SecClient:
         limit: int | None = None,
     ) -> FilingManifest:
         payload = self.get_company_submissions(cik)
+        return self.build_manifest_from_payload(
+            cik=cik,
+            payload=payload,
+            forms=forms,
+            since=since,
+            limit=limit,
+        )
+
+    def build_manifest_from_payload(
+        self,
+        cik: str | int,
+        payload: dict[str, Any],
+        forms: Iterable[str] = ("10-K", "10-Q", "8-K"),
+        since: date | None = None,
+        limit: int | None = None,
+    ) -> FilingManifest:
         normalized_cik = self.normalize_cik(cik)
         company_name = str(payload.get("name", "")).strip()
         recent = payload.get("filings", {}).get("recent", {})
@@ -159,9 +171,7 @@ class SecClient:
                     report_date=report_date,
                     primary_document=primary_document,
                     source_url=source_url,
-                    is_inline_xbrl=bool(
-                        recent.get("isInlineXBRL", [0] * len(accessions))[index]
-                    ),
+                    is_inline_xbrl=bool(recent.get("isInlineXBRL", [0] * len(accessions))[index]),
                     file_number=_optional_index(recent.get("fileNumber"), index),
                     film_number=_optional_index(recent.get("filmNumber"), index),
                 )

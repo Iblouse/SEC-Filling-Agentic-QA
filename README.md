@@ -59,3 +59,23 @@ Before adding an LLM:
 - Each filing has a stable accession number and source URL.
 - Raw responses can be written without mutation.
 - The manifest can be regenerated from a clean environment.
+
+
+## Discover filings into AWS
+
+Load the Terraform outputs into the current shell. Because a shell script cannot change its parent shell unless sourced, use:
+
+```bash
+source scripts/load_terraform_outputs.sh
+```
+
+Then discover and queue recent filings:
+
+```bash
+edgar-qa discover-to-aws \
+  --cik 0000019617 \
+  --forms 10-K,10-Q,8-K \
+  --limit 5
+```
+
+The command writes two content-addressed JSON manifests to the raw S3 bucket and sends one deterministic SQS message per filing. SQS delivery is at least once; downstream workers must treat `job_id` and `destination_key` as idempotency keys.
