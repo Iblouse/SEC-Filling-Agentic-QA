@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from pydantic import HttpUrl
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from edgar_qa.sec.models import FilingManifest, FilingMetadata
@@ -156,7 +157,7 @@ class SecClient:
             primary_document = recent["primaryDocument"][index]
             compact_accession = accession_number.replace("-", "")
             cik_without_padding = str(int(normalized_cik))
-            source_url = (
+            source_url = HttpUrl(
                 f"{SEC_ARCHIVES_BASE_URL}/{cik_without_padding}/"
                 f"{compact_accession}/{primary_document}"
             )
