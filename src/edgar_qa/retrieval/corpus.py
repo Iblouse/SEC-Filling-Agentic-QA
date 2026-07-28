@@ -127,35 +127,48 @@ def update_question_labels(
     question_id: str,
     relevant_chunk_ids: list[str],
 ) -> EvaluationQuestion:
-    questions = _read_questions(path)
+    """Update labels for one question without validating unrelated records."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+
     updated: EvaluationQuestion | None = None
-    for index, question in enumerate(questions):
-        if question.question_id == question_id:
-            updated = question.model_copy(
-                update={"relevant_chunk_ids": sorted(set(relevant_chunk_ids))}
-            )
-            questions[index] = updated
-            break
+    output_lines: list[str] = []
+
+    for line_number, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON at line {line_number}.") from exc
+
+        if payload.get("question_id") != question_id:
+            # Preserve unrelated questions without validating their schema.
+            output_lines.append(json.dumps(payload, separators=(",", ":")))
+            continue
+
+        try:
+            question = EvaluationQuestion.model_validate(payload)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid target question {question_id} at line {line_number}."
+            ) from exc
+
+        question.relevant_chunk_ids = list(dict.fromkeys(relevant_chunk_ids))
+
+        updated = question
+
+        output_lines.append(question.model_dump_json())
+
     if updated is None:
-        raise ValueError(f"Unknown question ID: {question_id}")
+        raise ValueError(f"Question ID {question_id!r} was not found.")
 
-    with path.open("w", encoding="utf-8") as handle:
-        for question in questions:
-            handle.write(question.model_dump_json() + "\n")
+    path.write_text(
+        "\n".join(output_lines) + "\n",
+        encoding="utf-8",
+    )
+
     return updated
-
-
-def _read_questions(path: Path) -> list[EvaluationQuestion]:
-    questions: list[EvaluationQuestion] = []
-    with path.open(encoding="utf-8") as handle:
-        for line_number, line in enumerate(handle, start=1):
-            if not line.strip():
-                continue
-            try:
-                questions.append(EvaluationQuestion.model_validate_json(line))
-            except ValueError as exc:
-                raise ValueError(f"Invalid question at line {line_number}.") from exc
-    return questions
 
 
 def build_corpus(
