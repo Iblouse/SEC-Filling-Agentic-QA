@@ -7,6 +7,7 @@ from typing import Protocol
 import boto3
 from botocore.exceptions import ClientError
 
+from edgar_qa.api.artifacts import download_runtime_artifacts
 from edgar_qa.api.models import AnswerRequest, AnswerResponse, CitationSource
 from edgar_qa.api.settings import APISettings
 from edgar_qa.qa.agent import BoundedCritiqueAgent
@@ -48,12 +49,26 @@ class QAService:
     @classmethod
     def build(cls, settings: APISettings | None = None) -> QAService:
         resolved = settings or APISettings()
+        session = boto3.Session(region_name=resolved.aws_region)
+        if resolved.qa_artifact_bucket is not None:
+            paths = download_runtime_artifacts(
+                session.client("s3"),
+                bucket=resolved.qa_artifact_bucket,
+                manifest_key=resolved.qa_artifact_manifest_key,
+                destination=resolved.qa_artifact_directory,
+            )
+            resolved = resolved.model_copy(
+                update={
+                    "qa_corpus_path": paths.corpus_path,
+                    "qa_embedding_cache_path": paths.embedding_cache_path,
+                }
+            )
+
         if not resolved.qa_corpus_path.exists():
             raise ValueError(f"Corpus does not exist: {resolved.qa_corpus_path}")
         if not resolved.qa_embedding_cache_path.exists():
             raise ValueError(f"Embedding cache does not exist: {resolved.qa_embedding_cache_path}")
 
-        session = boto3.Session(region_name=resolved.aws_region)
         runtime_client = session.client("bedrock-runtime")
         agent_runtime_client = session.client("bedrock-agent-runtime")
         index = build_hybrid_index(

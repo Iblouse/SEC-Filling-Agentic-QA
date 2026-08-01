@@ -15,3 +15,9 @@ build/
 .terraform/
 *.tfstate
 *.tfstate.*
+# Virtual environments
+.venv/
+venv/
+env/
+sec-venv/
+*-venv/

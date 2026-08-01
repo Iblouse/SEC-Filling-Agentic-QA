@@ -11,7 +11,7 @@ from edgar_qa.qa.reviser import DEFAULT_REVISION_MODEL
 
 
 class APISettings(BaseSettings):
-    """Runtime configuration for the Day 11 FastAPI service."""
+    """Runtime configuration for the FastAPI service."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -23,6 +23,9 @@ class APISettings(BaseSettings):
     aws_region: str = "us-east-1"
     qa_corpus_path: Path = Path("data/retrieval/sec_chunks.jsonl")
     qa_embedding_cache_path: Path = Path("data/retrieval/titan_v2_512_embeddings.jsonl")
+    qa_artifact_bucket: str | None = None
+    qa_artifact_manifest_key: str = "runtime/api/manifest.json"
+    qa_artifact_directory: Path = Path("/tmp/edgar-qa")
     qa_candidate_k: int = Field(default=20, ge=5, le=100)
     qa_rerank_candidates: int = Field(default=10, ge=5, le=50)
     qa_evidence_k: int = Field(default=5, ge=1, le=10)
