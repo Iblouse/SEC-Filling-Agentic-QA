@@ -24,7 +24,7 @@ resource "aws_ecs_task_definition" "api" {
   container_definitions = jsonencode([
     {
       name      = "api"
-      image     = "${aws_ecr_repository.application.repository_url}:${var.api_image_tag}"
+      image     = "${aws_ecr_repository.application.repository_url}:${data.aws_ssm_parameter.api_image_tag.value}"
       essential = true
 
       portMappings = [
@@ -58,7 +58,15 @@ resource "aws_ecs_task_definition" "api" {
         },
         { name = "QA_METRICS_NAMESPACE", value = var.api_metrics_namespace },
         { name = "QA_SERVICE_NAME", value = var.project_name },
-        { name = "QA_ENVIRONMENT", value = var.api_environment }
+        { name = "QA_ENVIRONMENT", value = var.api_environment },
+        { name = "QA_DISABLE_DOCS", value = tostring(var.api_disable_docs) }
+      ]
+
+      secrets = [
+        {
+          name      = "QA_API_KEY"
+          valueFrom = aws_secretsmanager_secret.api_key.arn
+        }
       ]
 
       logConfiguration = {
@@ -86,6 +94,8 @@ resource "aws_ecs_task_definition" "api" {
       }
     }
   ])
+
+  depends_on = [aws_iam_role_policy.api_execution_secret_read]
 }
 
 resource "aws_ecs_service" "api" {

@@ -1,0 +1,16 @@
+# Day 14 security and delivery
+api_edge_enabled             = true
+api_disable_docs             = true
+api_key_recovery_window_days = 7
+
+# Keep the service paused after Terraform applies.
+api_desired_count = 0
+
+# Replace with the repository reported by:
+# gh repo view --json nameWithOwner -q .nameWithOwner
+github_actions_enabled = true
+github_repository      = "YOUR_GITHUB_USERNAME/SEC-Filing-Agentic-QA"
+github_environment     = "production"
+
+# Leave empty unless the AWS account already has a GitHub OIDC provider.
+github_oidc_provider_arn = ""

@@ -1,0 +1,204 @@
+name: Deploy API
+
+on:
+  workflow_dispatch:
+    inputs:
+      leave_running:
+        description: "Leave one Fargate task running after smoke tests"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: sec-qa-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: production
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+      ECS_TASK_DEFINITION_FAMILY: ${{ vars.ECS_TASK_DEFINITION_FAMILY }}
+      ECS_CONTAINER_NAME: ${{ vars.ECS_CONTAINER_NAME }}
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      IMAGE_TAG_PARAMETER: ${{ vars.IMAGE_TAG_PARAMETER }}
+      SEC_QA_API_KEY: ${{ secrets.SEC_QA_API_KEY }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.1.2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: sec-qa-${{ github.run_id }}
+
+      - name: Authenticate Docker to ECR
+        shell: bash
+        run: |
+          REGISTRY="${ECR_REPOSITORY_URL%%/*}"
+          aws ecr get-login-password \
+            --region "$AWS_REGION" |
+          docker login \
+            --username AWS \
+            --password-stdin \
+            "$REGISTRY"
+
+      - name: Build and push immutable image
+        id: image
+        shell: bash
+        run: |
+          IMAGE_TAG="sha-${GITHUB_SHA::12}"
+          IMAGE_URI="${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+
+          docker build \
+            --platform linux/amd64 \
+            -f Dockerfile.api \
+            -t "$IMAGE_URI" \
+            .
+          docker push "$IMAGE_URI"
+
+          echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+          echo "tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Download and render current task definition
+        shell: bash
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_TASK_DEFINITION_FAMILY" \
+            --query taskDefinition \
+            > task-definition.raw.json
+
+          jq \
+            --arg image "${{ steps.image.outputs.uri }}" \
+            --arg container "$ECS_CONTAINER_NAME" \
+            '
+              del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
+              | (
+                  .containerDefinitions[]
+                  | select(.name == $container)
+                  | .image
+                ) = $image
+            ' \
+            task-definition.raw.json \
+            > task-definition.rendered.json
+
+      - name: Register and deploy task definition
+        id: task
+        shell: bash
+        run: |
+          TASK_DEFINITION_ARN="$(
+            aws ecs register-task-definition \
+              --cli-input-json file://task-definition.rendered.json \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text
+          )"
+
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "$TASK_DEFINITION_ARN" \
+            --desired-count 1 \
+            >/dev/null
+
+          echo "arn=$TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for ECS stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
+
+      - name: Run protected deployment smoke test
+        shell: bash
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 10 \
+            --retry-delay 6 \
+            "$API_BASE_URL/readyz" |
+          jq -e '.status == "ready"' >/dev/null
+
+          STATUS="$(
+            curl \
+              --silent \
+              --show-error \
+              --output /tmp/unauthorized.json \
+              --write-out '%{http_code}' \
+              -X POST \
+              "$API_BASE_URL/v1/answer" \
+              -H 'Content-Type: application/json' \
+              -d '{"question":"What cybersecurity risks were disclosed?"}'
+          )"
+          test "$STATUS" = "401"
+
+          RESPONSE="$(
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              -X POST \
+              "$API_BASE_URL/v1/answer" \
+              -H 'Content-Type: application/json' \
+              -H "X-API-Key: $SEC_QA_API_KEY" \
+              -H "X-Request-ID: gha-${GITHUB_RUN_ID}" \
+              -d '{
+                "question": "What cybersecurity risks did Bank of America disclose in Item 1A?",
+                "filters": {
+                  "cik": "0000070858",
+                  "form": "10-K",
+                  "section_label": "item-1a"
+                }
+              }'
+          )"
+
+          printf '%s\n' "$RESPONSE" | jq .
+          printf '%s\n' "$RESPONSE" | jq -e '
+            .abstained == false
+            and (.citations | length) > 0
+            and all(.citations[]; .cik == "0000070858")
+          ' >/dev/null
+
+      - name: Record accepted image tag
+        run: |
+          aws ssm put-parameter \
+            --name "$IMAGE_TAG_PARAMETER" \
+            --type String \
+            --value "${{ steps.image.outputs.tag }}" \
+            --overwrite \
+            >/dev/null
+
+      - name: Pause service after validation
+        if: ${{ always() && !inputs.leave_running }}
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --desired-count 0 \
+            >/dev/null
+
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"

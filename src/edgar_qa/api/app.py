@@ -28,6 +28,7 @@ from edgar_qa.api.models import (
     FeedbackResponse,
     HealthResponse,
 )
+from edgar_qa.api.security import api_key_is_valid, path_requires_api_key
 from edgar_qa.api.service import AnswerService, QAService, ServiceDependencyError
 from edgar_qa.api.settings import APISettings
 
@@ -80,10 +81,17 @@ def create_app(
             LOGGER.exception("feedback_store_startup_failed")
         yield
 
+    docs_url = None if resolved_settings.qa_disable_docs else "/docs"
+    openapi_url = None if resolved_settings.qa_disable_docs else "/openapi.json"
+    redoc_url = None if resolved_settings.qa_disable_docs else "/redoc"
+
     application = FastAPI(
         title="SEC Filing Agentic QA API",
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
+        docs_url=docs_url,
+        openapi_url=openapi_url,
+        redoc_url=redoc_url,
     )
 
     @application.middleware("http")
@@ -91,24 +99,36 @@ def create_app(
         request_id = _request_id(request.headers.get("X-Request-ID"))
         request.state.request_id = request_id
         started = time.perf_counter()
-        try:
-            response = await call_next(request)
-        except Exception:
-            duration_ms = (time.perf_counter() - started) * 1000
-            emit_request_metrics(
-                metrics_config,
-                method=request.method,
-                path=request.url.path,
-                status_code=500,
-                duration_ms=duration_ms,
+
+        if path_requires_api_key(request.url.path) and not api_key_is_valid(
+            request.headers.get("X-API-Key"),
+            resolved_settings.qa_api_key,
+        ):
+            response = JSONResponse(
+                status_code=401,
+                content={"detail": "A valid API key is required."},
+                headers={"WWW-Authenticate": "ApiKey"},
             )
-            LOGGER.exception(
-                "request_failed request_id=%s method=%s path=%s",
-                request_id,
-                request.method,
-                request.url.path,
-            )
-            raise
+        else:
+            try:
+                response = await call_next(request)
+            except Exception:
+                duration_ms = (time.perf_counter() - started) * 1000
+                emit_request_metrics(
+                    metrics_config,
+                    method=request.method,
+                    path=request.url.path,
+                    status_code=500,
+                    duration_ms=duration_ms,
+                )
+                LOGGER.exception(
+                    "request_failed request_id=%s method=%s path=%s",
+                    request_id,
+                    request.method,
+                    request.url.path,
+                )
+                raise
+
         duration_ms = (time.perf_counter() - started) * 1000
         response.headers["X-Request-ID"] = request_id
         emit_request_metrics(

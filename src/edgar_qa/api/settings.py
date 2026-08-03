@@ -43,6 +43,11 @@ class APISettings(BaseSettings):
     qa_service_name: str = "sec-filing-agentic-qa"
     qa_environment: str = "portfolio"
 
+    # Local development remains open when QA_API_KEY is unset. The ECS task
+    # injects this value from Secrets Manager in the deployed environment.
+    qa_api_key: str | None = Field(default=None, min_length=32)
+    qa_disable_docs: bool = False
+
     @model_validator(mode="after")
     def validate_retrieval_depths(self) -> APISettings:
         if self.qa_candidate_k < self.qa_rerank_candidates:

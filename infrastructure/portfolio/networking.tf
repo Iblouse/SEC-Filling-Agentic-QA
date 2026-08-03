@@ -58,12 +58,26 @@ resource "aws_security_group" "api_alb" {
   description = "Internet traffic to the SEC QA load balancer."
   vpc_id      = aws_vpc.api.id
 
-  ingress {
-    description = "Public HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = var.api_ingress_cidrs
+  dynamic "ingress" {
+    for_each = var.api_edge_enabled ? [1] : []
+    content {
+      description     = "HTTP from CloudFront origin-facing servers"
+      from_port       = 80
+      to_port         = 80
+      protocol        = "tcp"
+      prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.id]
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = var.api_edge_enabled ? [] : var.api_ingress_cidrs
+    content {
+      description = "Direct HTTP access when CloudFront is disabled"
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_blocks = [ingress.value]
+    }
   }
 
   egress {
