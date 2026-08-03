@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AnswerFilters(BaseModel):
@@ -51,6 +51,60 @@ class AnswerResponse(BaseModel):
     model_calls: int
     total_tokens: int | None = None
     latency_ms: float
+
+
+FeedbackReason = Literal[
+    "relevant",
+    "incomplete",
+    "incorrect",
+    "citation_issue",
+    "other",
+]
+
+
+class FeedbackRequest(BaseModel):
+    """User evaluation linked to a prior answer request ID."""
+
+    request_id: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
+    helpful: bool
+    reason: FeedbackReason | None = None
+    comment: str | None = Field(default=None, max_length=2000)
+    citation_ids: list[str] = Field(default_factory=list, max_length=10)
+
+    @field_validator("comment")
+    @classmethod
+    def normalize_comment(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+    @field_validator("citation_ids")
+    @classmethod
+    def normalize_citation_ids(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for value in values:
+            cleaned = value.strip()
+            if not cleaned:
+                continue
+            if len(cleaned) > 64:
+                raise ValueError("citation_ids must be at most 64 characters each.")
+            if cleaned not in normalized:
+                normalized.append(cleaned)
+        return normalized
+
+
+class FeedbackResponse(BaseModel):
+    """Acknowledgement returned after durable feedback storage."""
+
+    status: Literal["accepted"] = "accepted"
+    feedback_id: str
+    request_id: str
+    expires_at: str
 
 
 class HealthResponse(BaseModel):

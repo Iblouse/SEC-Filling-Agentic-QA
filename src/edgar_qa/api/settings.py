@@ -37,6 +37,12 @@ class APISettings(BaseSettings):
     qa_critic_model_id: str = DEFAULT_CRITIC_MODEL
     qa_revision_model_id: str = DEFAULT_REVISION_MODEL
 
+    qa_feedback_table_name: str | None = None
+    qa_feedback_ttl_days: int = Field(default=90, ge=1, le=365)
+    qa_metrics_namespace: str = "SECQA"
+    qa_service_name: str = "sec-filing-agentic-qa"
+    qa_environment: str = "portfolio"
+
     @model_validator(mode="after")
     def validate_retrieval_depths(self) -> APISettings:
         if self.qa_candidate_k < self.qa_rerank_candidates:

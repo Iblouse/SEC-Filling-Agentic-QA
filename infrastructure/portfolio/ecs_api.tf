@@ -50,7 +50,15 @@ resource "aws_ecs_task_definition" "api" {
           name  = "QA_RERANK_CANDIDATES"
           value = tostring(var.api_rerank_candidates)
         },
-        { name = "QA_EVIDENCE_K", value = tostring(var.api_evidence_k) }
+        { name = "QA_EVIDENCE_K", value = tostring(var.api_evidence_k) },
+        { name = "QA_FEEDBACK_TABLE_NAME", value = aws_dynamodb_table.api_feedback.name },
+        {
+          name  = "QA_FEEDBACK_TTL_DAYS"
+          value = tostring(var.api_feedback_ttl_days)
+        },
+        { name = "QA_METRICS_NAMESPACE", value = var.api_metrics_namespace },
+        { name = "QA_SERVICE_NAME", value = var.project_name },
+        { name = "QA_ENVIRONMENT", value = var.api_environment }
       ]
 
       logConfiguration = {

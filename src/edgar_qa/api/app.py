@@ -10,8 +10,26 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from edgar_qa.api.models import AnswerRequest, AnswerResponse, HealthResponse
+from edgar_qa.api.feedback import (
+    FeedbackStore,
+    FeedbackStoreError,
+    build_feedback_store,
+)
+from edgar_qa.api.metrics import (
+    MetricsConfig,
+    emit_answer_metrics,
+    emit_feedback_metrics,
+    emit_request_metrics,
+)
+from edgar_qa.api.models import (
+    AnswerRequest,
+    AnswerResponse,
+    FeedbackRequest,
+    FeedbackResponse,
+    HealthResponse,
+)
 from edgar_qa.api.service import AnswerService, QAService, ServiceDependencyError
+from edgar_qa.api.settings import APISettings
 
 LOGGER = logging.getLogger("edgar_qa.api")
 logging.basicConfig(
@@ -20,15 +38,28 @@ logging.basicConfig(
 )
 
 ServiceFactory = Callable[[], AnswerService]
+FeedbackStoreFactory = Callable[[], FeedbackStore | None]
 
 
-def create_app(service_factory: ServiceFactory | None = None) -> FastAPI:
-    """Create the Day 11 API with an injectable service for tests."""
+def create_app(
+    service_factory: ServiceFactory | None = None,
+    feedback_store_factory: FeedbackStoreFactory | None = None,
+    settings: APISettings | None = None,
+) -> FastAPI:
+    """Create the API with injectable dependencies for tests."""
 
-    factory = service_factory or QAService.build
+    resolved_settings = settings or APISettings()
+    factory = service_factory or (lambda: QAService.build(resolved_settings))
+    feedback_factory = feedback_store_factory or (lambda: build_feedback_store(resolved_settings))
+    metrics_config = MetricsConfig(
+        namespace=resolved_settings.qa_metrics_namespace,
+        service=resolved_settings.qa_service_name,
+        environment=resolved_settings.qa_environment,
+    )
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        application.state.metrics_config = metrics_config
         try:
             application.state.qa_service = factory()
             application.state.startup_error = None
@@ -37,11 +68,21 @@ def create_app(service_factory: ServiceFactory | None = None) -> FastAPI:
             application.state.qa_service = None
             application.state.startup_error = str(exc)
             LOGGER.exception("qa_service_startup_failed")
+
+        try:
+            application.state.feedback_store = feedback_factory()
+            application.state.feedback_error = None
+            if application.state.feedback_store is not None:
+                LOGGER.info("feedback_store_ready")
+        except Exception as exc:
+            application.state.feedback_store = None
+            application.state.feedback_error = str(exc)
+            LOGGER.exception("feedback_store_startup_failed")
         yield
 
     application = FastAPI(
         title="SEC Filing Agentic QA API",
-        version="0.1.0",
+        version="0.2.0",
         lifespan=lifespan,
     )
 
@@ -53,6 +94,14 @@ def create_app(service_factory: ServiceFactory | None = None) -> FastAPI:
         try:
             response = await call_next(request)
         except Exception:
+            duration_ms = (time.perf_counter() - started) * 1000
+            emit_request_metrics(
+                metrics_config,
+                method=request.method,
+                path=request.url.path,
+                status_code=500,
+                duration_ms=duration_ms,
+            )
             LOGGER.exception(
                 "request_failed request_id=%s method=%s path=%s",
                 request_id,
@@ -62,6 +111,13 @@ def create_app(service_factory: ServiceFactory | None = None) -> FastAPI:
             raise
         duration_ms = (time.perf_counter() - started) * 1000
         response.headers["X-Request-ID"] = request_id
+        emit_request_metrics(
+            metrics_config,
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+        )
         LOGGER.info(
             "request_complete request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
             request_id,
@@ -89,7 +145,7 @@ def create_app(service_factory: ServiceFactory | None = None) -> FastAPI:
     def answer(request: Request, payload: AnswerRequest) -> AnswerResponse:
         service = _service(request)
         try:
-            return service.answer(request.state.request_id, payload)
+            response = service.answer(request.state.request_id, payload)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except ServiceDependencyError as exc:
@@ -101,6 +157,34 @@ def create_app(service_factory: ServiceFactory | None = None) -> FastAPI:
                 status_code=502,
                 detail="The QA dependency failed after retries.",
             ) from exc
+        emit_answer_metrics(metrics_config, response)
+        return response
+
+    @application.post(
+        "/v1/feedback",
+        response_model=FeedbackResponse,
+        status_code=201,
+    )
+    def feedback(request: Request, payload: FeedbackRequest) -> FeedbackResponse:
+        store = _feedback_store(request)
+        try:
+            response = store.save(request.state.request_id, payload)
+        except FeedbackStoreError as exc:
+            LOGGER.exception(
+                "feedback_dependency_failed feedback_id=%s answer_request_id=%s",
+                request.state.request_id,
+                payload.request_id,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="Feedback storage failed.",
+            ) from exc
+        emit_feedback_metrics(
+            metrics_config,
+            feedback_id=response.feedback_id,
+            feedback=payload,
+        )
+        return response
 
     return application
 
@@ -110,6 +194,13 @@ def _service(request: Request) -> AnswerService:
     if service is None:
         raise HTTPException(status_code=503, detail="QA service is not ready.")
     return cast(AnswerService, service)
+
+
+def _feedback_store(request: Request) -> FeedbackStore:
+    store = getattr(request.app.state, "feedback_store", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Feedback storage is not ready.")
+    return cast(FeedbackStore, store)
 
 
 def _request_id(value: str | None) -> str:
