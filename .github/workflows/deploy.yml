@@ -39,6 +39,7 @@ jobs:
         uses: actions/checkout@v6.0.2
 
       - name: Configure short-lived AWS credentials
+        id: aws_credentials
         uses: aws-actions/configure-aws-credentials@v6.1.2
         with:
           aws-region: ${{ env.AWS_REGION }}
@@ -223,7 +224,7 @@ jobs:
             >/dev/null
 
       - name: Pause service after validation
-        if: ${{ always() && !inputs.leave_running }}
+        if: ${{ always() && steps.aws_credentials.outcome == 'success' && !inputs.leave_running }}
         run: |
           aws ecs update-service \
             --cluster "$ECS_CLUSTER" \

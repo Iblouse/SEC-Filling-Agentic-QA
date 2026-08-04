@@ -16,6 +16,13 @@ locals {
   )
 }
 
+
+locals {
+  github_oidc_subjects = length(var.github_oidc_subjects) > 0 ? var.github_oidc_subjects : [
+    "repo:${var.github_repository}:environment:${var.github_environment}"
+  ]
+}
+
 data "aws_iam_policy_document" "github_deploy_assume" {
   count = var.github_actions_enabled ? 1 : 0
 
@@ -37,9 +44,7 @@ data "aws_iam_policy_document" "github_deploy_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_repository}:environment:${var.github_environment}"
-      ]
+      values   = local.github_oidc_subjects
     }
   }
 }

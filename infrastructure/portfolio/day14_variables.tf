@@ -58,3 +58,10 @@ variable "github_oidc_provider_arn" {
   type        = string
   default     = ""
 }
+
+
+variable "github_oidc_subjects" {
+  description = "Exact GitHub OIDC subject claims allowed to assume the deployment role."
+  type        = list(string)
+  default     = []
+}
