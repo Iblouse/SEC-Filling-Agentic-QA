@@ -30,7 +30,7 @@ jobs:
       ECS_SERVICE: ${{ vars.ECS_SERVICE }}
       ECS_TASK_DEFINITION_FAMILY: ${{ vars.ECS_TASK_DEFINITION_FAMILY }}
       ECS_CONTAINER_NAME: ${{ vars.ECS_CONTAINER_NAME }}
-      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      CLOUDFRONT_DISTRIBUTION_ID: E13MHMMQUJO8GV
       IMAGE_TAG_PARAMETER: ${{ vars.IMAGE_TAG_PARAMETER }}
       SEC_QA_API_KEY: ${{ secrets.SEC_QA_API_KEY }}
 
@@ -140,6 +140,23 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_SERVICE"
 
+      - name: Resolve deployed CloudFront URL
+        id: cloudfront
+        shell: bash
+        run: |
+          CLOUDFRONT_DOMAIN="$(
+            aws cloudfront get-distribution \
+              --id "$CLOUDFRONT_DISTRIBUTION_ID" \
+              --query 'Distribution.DomainName' \
+              --output text
+          )"
+
+          test -n "$CLOUDFRONT_DOMAIN"
+          test "$CLOUDFRONT_DOMAIN" != "None"
+
+          echo "api_base_url=https://${CLOUDFRONT_DOMAIN}" >> "$GITHUB_OUTPUT"
+          echo "Using CloudFront domain: ${CLOUDFRONT_DOMAIN}"
+
       - name: Run protected answer and feedback smoke tests
         shell: bash
         run: |
@@ -149,7 +166,7 @@ jobs:
             --show-error \
             --retry 10 \
             --retry-delay 6 \
-            "$API_BASE_URL/readyz" |
+            "${{ steps.cloudfront.outputs.api_base_url }}/readyz" |
           jq -e '.status == "ready"' >/dev/null
 
           STATUS="$(
@@ -159,7 +176,7 @@ jobs:
               --output /tmp/unauthorized.json \
               --write-out '%{http_code}' \
               -X POST \
-              "$API_BASE_URL/v1/answer" \
+              "${{ steps.cloudfront.outputs.api_base_url }}/v1/answer" \
               -H 'Content-Type: application/json' \
               -d '{"question":"What cybersecurity risks were disclosed?"}'
           )"
@@ -172,7 +189,7 @@ jobs:
               --silent \
               --show-error \
               -X POST \
-              "$API_BASE_URL/v1/answer" \
+              "${{ steps.cloudfront.outputs.api_base_url }}/v1/answer" \
               -H 'Content-Type: application/json' \
               -H "X-API-Key: $SEC_QA_API_KEY" \
               -H "X-Request-ID: $REQUEST_ID" \
@@ -207,7 +224,7 @@ jobs:
             --silent \
             --show-error \
             -X POST \
-            "$API_BASE_URL/v1/feedback" \
+            "${{ steps.cloudfront.outputs.api_base_url }}/v1/feedback" \
             -H 'Content-Type: application/json' \
             -H "X-API-Key: $SEC_QA_API_KEY" \
             -H "X-Request-ID: gha-feedback-${GITHUB_RUN_ID}" \
