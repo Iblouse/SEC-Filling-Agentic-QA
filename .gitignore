@@ -21,3 +21,6 @@ venv/
 env/
 sec-venv/
 *-venv/
+
+# Local AWS credential exports
+*_accessKeys.csv

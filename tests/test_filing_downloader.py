@@ -28,9 +28,7 @@ def test_downloader_hashes_valid_html() -> None:
 
 def test_downloader_rejects_sec_block_page() -> None:
     body = (
-        b"<html>Your Request Originates from an Undeclared Automated Tool"
-        + b"x" * 300
-        + b"</html>"
+        b"<html>Your Request Originates from an Undeclared Automated Tool" + b"x" * 300 + b"</html>"
     )
 
     def handler(request: httpx.Request) -> httpx.Response:

@@ -127,8 +127,12 @@ class SecFilingDownloader:
 
         content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
         allowed = {
-            "text/html", "application/xhtml+xml", "text/plain",
-            "application/xml", "text/xml", "",
+            "text/html",
+            "application/xhtml+xml",
+            "text/plain",
+            "application/xml",
+            "text/xml",
+            "",
         }
         if content_type not in allowed:
             raise FilingValidationError(

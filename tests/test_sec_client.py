@@ -41,8 +41,7 @@ def test_build_manifest_filters_forms_and_constructs_source_url() -> None:
     assert manifest.cik == "0000019617"
     assert [filing.form for filing in manifest.filings] == ["10-K", "10-Q"]
     assert (
-        str(manifest.filings[0].source_url)
-        == "https://www.sec.gov/Archives/edgar/data/19617/"
+        str(manifest.filings[0].source_url) == "https://www.sec.gov/Archives/edgar/data/19617/"
         "000001961726000001/jpm-20251231.htm"
     )
 

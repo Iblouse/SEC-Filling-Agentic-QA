@@ -17,10 +17,14 @@ class FakeStore:
 
     def put_filing_if_absent(self, job: Any, downloaded: Any) -> Any:
         self.put_calls += 1
-        return type("Stored", (), {
-            "created": True,
-            "receipt_key": f"{job.destination_key}.receipt.json",
-        })()
+        return type(
+            "Stored",
+            (),
+            {
+                "created": True,
+                "receipt_key": f"{job.destination_key}.receipt.json",
+            },
+        )()
 
 
 class FakeDownloader:
@@ -49,11 +53,15 @@ class FakeSqs:
     def receive_message(self, **_: Any) -> dict[str, Any]:
         if self.body is None:
             return {}
-        return {"Messages": [{
-            "Body": self.body,
-            "ReceiptHandle": "receipt-1",
-            "Attributes": {"ApproximateReceiveCount": "1"},
-        }]}
+        return {
+            "Messages": [
+                {
+                    "Body": self.body,
+                    "ReceiptHandle": "receipt-1",
+                    "Attributes": {"ApproximateReceiveCount": "1"},
+                }
+            ]
+        }
 
     def delete_message(self, **kwargs: Any) -> None:
         assert kwargs["ReceiptHandle"] == "receipt-1"
@@ -61,26 +69,27 @@ class FakeSqs:
 
 
 def job_body() -> str:
-    return json.dumps({
-        "schema_version": "1.0",
-        "job_id": "job-123",
-        "discovered_at": "2026-07-18T12:00:00Z",
-        "filing": {
-            "cik": "0000019617",
-            "company_name": "JPMORGAN CHASE & CO",
-            "accession_number": "0000019617-26-000001",
-            "form": "10-K",
-            "source_url": (
-                "https://www.sec.gov/Archives/edgar/data/19617/"
-                "000001961726000001/jpm-20251231.htm"
+    return json.dumps(
+        {
+            "schema_version": "1.0",
+            "job_id": "job-123",
+            "discovered_at": "2026-07-18T12:00:00Z",
+            "filing": {
+                "cik": "0000019617",
+                "company_name": "JPMORGAN CHASE & CO",
+                "accession_number": "0000019617-26-000001",
+                "form": "10-K",
+                "source_url": (
+                    "https://www.sec.gov/Archives/edgar/data/19617/"
+                    "000001961726000001/jpm-20251231.htm"
+                ),
+            },
+            "destination_bucket": "raw-bucket",
+            "destination_key": (
+                "filings/cik=0000019617/form=10-K/accession=0000019617-26-000001/jpm-20251231.html"
             ),
-        },
-        "destination_bucket": "raw-bucket",
-        "destination_key": (
-            "filings/cik=0000019617/form=10-K/"
-            "accession=0000019617-26-000001/jpm-20251231.html"
-        ),
-    })
+        }
+    )
 
 
 def test_worker_stores_then_deletes_message() -> None:
@@ -88,7 +97,10 @@ def test_worker_stores_then_deletes_message() -> None:
     store = FakeStore()
     downloader = FakeDownloader()
     worker = FilingIngestionWorker(
-        sqs, "queue-url", store, downloader  # type: ignore[arg-type]
+        sqs,
+        "queue-url",
+        store,
+        downloader,  # type: ignore[arg-type]
     )
     result = worker.run_once(wait_time_seconds=0)
     assert result is not None and result.status == IngestionStatus.STORED
@@ -100,7 +112,10 @@ def test_worker_skips_existing_object() -> None:
     store = FakeStore(exists=True)
     downloader = FakeDownloader()
     worker = FilingIngestionWorker(
-        sqs, "queue-url", store, downloader  # type: ignore[arg-type]
+        sqs,
+        "queue-url",
+        store,
+        downloader,  # type: ignore[arg-type]
     )
     result = worker.run_once(wait_time_seconds=0)
     assert result is not None and result.status == IngestionStatus.ALREADY_EXISTS
@@ -114,7 +129,10 @@ def test_failure_does_not_delete_message() -> None:
 
     sqs = FakeSqs(job_body())
     worker = FilingIngestionWorker(
-        sqs, "queue-url", FakeStore(), FailingDownloader()  # type: ignore[arg-type]
+        sqs,
+        "queue-url",
+        FakeStore(),
+        FailingDownloader(),  # type: ignore[arg-type]
     )
     try:
         worker.run_once(wait_time_seconds=0)
@@ -128,6 +146,9 @@ def test_failure_does_not_delete_message() -> None:
 def test_empty_queue_returns_none() -> None:
     sqs = FakeSqs(None)
     worker = FilingIngestionWorker(
-        sqs, "queue-url", FakeStore(), FakeDownloader()  # type: ignore[arg-type]
+        sqs,
+        "queue-url",
+        FakeStore(),
+        FakeDownloader(),  # type: ignore[arg-type]
     )
     assert worker.run_once(wait_time_seconds=0) is None

@@ -51,7 +51,7 @@ class FilingIngestionWorker:
         #     QueueUrl=self._queue_url,
         #     ReceiptHandle=message["ReceiptHandle"],
         # )
-        
+
         message = messages[0]
         try:
             # Process and delete valid messages
@@ -76,9 +76,7 @@ class FilingIngestionWorker:
         try:
             job = IngestionJob.model_validate(json.loads(body))
         except (json.JSONDecodeError, ValidationError) as exc:
-            raise InvalidIngestionMessageError(
-                "SQS message is not a valid ingestion job."
-            ) from exc
+            raise InvalidIngestionMessageError("SQS message is not a valid ingestion job.") from exc
 
         if self._store.exists(job.destination_bucket, job.destination_key):
             return IngestionResult(
