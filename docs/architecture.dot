@@ -1,0 +1,48 @@
+digraph SECQA {
+  graph [rankdir=TB, bgcolor="white", pad="0.35", nodesep="0.6", ranksep="0.8", fontname="Helvetica", fontsize=22, labelloc="t", label="SEC Filing Agentic QA | Production Architecture", splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=13, color="#334155", fillcolor="#f8fafc", margin="0.20,0.13", width=2.15];
+  edge [color="#64748b", penwidth=1.7, arrowsize=0.8, fontname="Helvetica", fontsize=10];
+
+  subgraph cluster_ingest {
+    label="1. Ingestion and document processing";
+    color="#60a5fa"; penwidth=1.5; style="rounded";
+    { rank=same;
+      EDGAR [label="SEC EDGAR\n10-K | 10-Q | 8-K", fillcolor="#dbeafe"];
+      Discover [label="Discovery + SQS\nrate-limited, stable jobs", fillcolor="#fef3c7"];
+      Ingest [label="Idempotent ingestion\ndownload + receipts"];
+      Parse [label="HTML parsing\nblocks + tables + sections"];
+      Storage [label="S3 raw + curated\nimmutable source and JSON", fillcolor="#dcfce7"];
+    }
+    EDGAR -> Discover -> Ingest -> Parse -> Storage;
+  }
+
+  subgraph cluster_qa {
+    label="2. Retrieval and bounded question answering";
+    color="#a78bfa"; penwidth=1.5; style="rounded";
+    { rank=same;
+      Corpus [label="Stable chunks\nsource metadata"];
+      Retrieve [label="BM25 + Titan dense\nweighted reciprocal-rank fusion", fillcolor="#ede9fe"];
+      Evidence [label="Optional Cohere rerank\ntop evidence + excerpts", fillcolor="#f3e8ff"];
+      Agent [label="Amazon Nova\ngenerate + validate + critique\nmaximum one revision", fillcolor="#ede9fe"];
+      Answer [label="Answer with citations\nor explicit abstention", fillcolor="#dcfce7"];
+    }
+    Corpus -> Retrieve -> Evidence -> Agent -> Answer;
+  }
+
+  subgraph cluster_serving {
+    label="3. Serving, security, feedback, observability, and delivery";
+    color="#4ade80"; penwidth=1.5; style="rounded";
+    { rank=same;
+      Client [label="Analyst or demo client"];
+      EdgeNode [label="CloudFront HTTPS\nALB origin", fillcolor="#dbeafe"];
+      API [label="FastAPI on ECS Fargate\nAPI-key protected\npaused by default", fillcolor="#dcfce7"];
+      Ops [label="DynamoDB feedback\nCloudWatch metrics + alarms", fillcolor="#fef3c7"];
+      Delivery [label="GitHub Actions OIDC\nECR + SSM + Secrets Manager", fillcolor="#e2e8f0"];
+    }
+    Client -> EdgeNode -> API -> Ops;
+    Delivery -> API;
+  }
+
+  Storage -> Corpus [penwidth=2.4, color="#2563eb"];
+  Answer -> API [dir=both, penwidth=2.4, color="#16a34a"];
+}

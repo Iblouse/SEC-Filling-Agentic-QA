@@ -1,81 +1,201 @@
 # SEC Filing Agentic QA
 
-Production-oriented semantic search and question answering over SEC 10-K, 10-Q, and 8-K filings, with a bounded critique loop and feedback-driven offline refinement.
+A production-oriented retrieval and grounded question-answering system for public SEC filings. It ingests real 10-K, 10-Q, and 8-K filings, preserves immutable source artifacts, benchmarks multiple retrieval strategies, generates answers with source-level citations, applies a bounded critique workflow, records user feedback, and deploys a protected API on AWS.
 
-## Initial scope
+**Production-supported issuers:** JPMorgan Chase and Bank of America  
+**Cloud:** AWS  
+**Language:** Python 3.11+  
+**Release posture:** portfolio release with the serving environment paused by default for cost control
 
-- Companies: JPMorgan Chase, Citigroup, Bank of America, Wells Fargo, Goldman Sachs
-- Forms: 10-K, 10-Q, 8-K
-- Cloud: AWS
-- Local development: Python 3.11+
+## What this project demonstrates
 
-## Why this is not a PDF chatbot
+- Real EDGAR ingestion rather than synthetic documents
+- Immutable raw and curated S3 storage
+- Idempotent SQS-based ingestion jobs
+- Filing parsing with stable block, section, and chunk identifiers
+- BM25, Titan dense retrieval, weighted reciprocal-rank fusion, and Cohere reranking
+- Grounded generation with Amazon Nova and structured citation validation
+- A bounded generate, critique, optional single-revision workflow
+- FastAPI on ECS Fargate behind an ALB and CloudFront HTTPS
+- API-key protection with AWS Secrets Manager
+- Durable feedback in DynamoDB with TTL
+- CloudWatch logs, embedded metrics, dashboard, and alarms
+- Terraform infrastructure and GitHub Actions deployment through OIDC
+- Explicit pause controls so Fargate does not run continuously
 
-1. Incremental EDGAR ingestion with immutable raw storage.
-2. Stable filing and section metadata.
-3. BM25, dense, and hybrid retrieval benchmarks.
-4. Query planning for company, form, period, section, and comparison questions.
-5. Claim-level citation verification.
-6. A maximum of two critique-and-retrieval refinement cycles.
-7. Structured user feedback and an approval-gated offline improvement pipeline.
-8. Authentication, CI/CD, monitoring, cost tracking, and reproducible infrastructure.
+## Architecture
 
-## Start locally
+![SEC Filing Agentic QA architecture](docs/architecture.svg)
 
-```bash
-cp .env.example .env
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-pytest
+The end-to-end flow is documented in [docs/architecture.md](docs/architecture.md).
+
+## Evaluation highlights
+
+The committed benchmark contains **18 labeled questions** covering two issuers and three filing types:
+
+| Scope | Count |
+|---|---:|
+| JPMorgan Chase | 13 |
+| Bank of America | 5 |
+| 10-K | 5 |
+| 10-Q | 6 |
+| 8-K | 7 |
+
+Retrieval metrics recalculated for the active 18-question benchmark:
+
+| Retrieval system | Recall@5 | Recall@10 | MRR | nDCG@10 |
+|---|---:|---:|---:|---:|
+| BM25 | 0.456 | 0.515 | 0.583 | 0.521 |
+| Titan dense | 0.492 | 0.571 | **0.667** | 0.608 |
+| Weighted hybrid RRF | **0.511** | **0.585** | 0.639 | **0.608** |
+| Hybrid plus Cohere rerank | 0.489 | 0.567 | 0.611 | 0.570 |
+
+Weighted hybrid retrieval produced the strongest recall and nDCG, while dense retrieval produced the best first-relevant-result ranking. Cohere reranking did not improve this small benchmark, so the project retains evaluation evidence rather than claiming that every additional model improved results.
+
+The grounded QA evaluation on q001 through q015 produced a **93.3% citation-validity rate**, a **60.0% gold-evidence hit rate**, and a **33.3% abstention rate**. The bounded critique workflow revised 20.0% of answers but did not improve aggregate evidence metrics. It is therefore presented as a controlled safety and review mechanism, not as an automatic quality gain.
+
+See [docs/evaluation_summary.md](docs/evaluation_summary.md) and the machine-readable summaries under [evaluation/results](evaluation/results).
+
+## Supported API
+
+### Health
+
+```http
+GET /healthz
+GET /readyz
 ```
 
-Set a real SEC user agent in `.env`:
+### Grounded answer
+
+```http
+POST /v1/answer
+X-API-Key: <key>
+Content-Type: application/json
+```
+
+```json
+{
+  "question": "What cybersecurity risks did Bank of America disclose in Item 1A?",
+  "filters": {
+    "cik": "0000070858",
+    "form": "10-K",
+    "section_label": "item-1a"
+  }
+}
+```
+
+The response includes the answer, abstention and revision flags, citation-validation status, model-call count, latency, and filing citations with excerpts.
+
+### Feedback
+
+```http
+POST /v1/feedback
+X-API-Key: <key>
+Content-Type: application/json
+```
+
+```json
+{
+  "request_id": "demo-answer-001",
+  "helpful": true,
+  "reason": "relevant",
+  "comment": "The answer cited the correct risk-factor section."
+}
+```
+
+The feedback record is stored in DynamoDB with automatic TTL expiration.
+
+## Local setup
+
+```bash
+python3.12 -m venv sec-venv
+source sec-venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+cp .env.example .env
+```
+
+Set an identifiable SEC user agent in `.env`:
 
 ```text
 SEC_USER_AGENT="Your Name your.email@example.com"
 ```
 
-Retrieve a company's recent filing metadata:
+Run the quality gate:
 
 ```bash
-edgar-qa submissions --cik 0000019617 --output data/raw/jpmorgan-submissions.json
+make check
 ```
 
-List recent filings:
+Retrieve recent JPMorgan filing metadata:
 
 ```bash
-edgar-qa filings --cik 0000019617 --forms 10-K,10-Q,8-K --limit 20
-```
-
-## First acceptance gate
-
-Before adding an LLM:
-
-- Filing discovery is reproducible.
-- Requests use an identifiable SEC user agent.
-- Rate limiting and retry behavior are tested.
-- Each filing has a stable accession number and source URL.
-- Raw responses can be written without mutation.
-- The manifest can be regenerated from a clean environment.
-
-
-## Discover filings into AWS
-
-Load the Terraform outputs into the current shell. Because a shell script cannot change its parent shell unless sourced, use:
-
-```bash
-source scripts/load_terraform_outputs.sh
-```
-
-Then discover and queue recent filings:
-
-```bash
-edgar-qa discover-to-aws \
+edgar-qa submissions \
   --cik 0000019617 \
-  --forms 10-K,10-Q,8-K \
-  --limit 5
+  --output data/raw/jpmorgan-submissions.json
 ```
 
-The command writes two content-addressed JSON manifests to the raw S3 bucket and sends one deterministic SQS message per filing. SQS delivery is at least once; downstream workers must treat `job_id` and `destination_key` as idempotency keys.
+## Reproducing the build
+
+The repository includes day-specific design notes and scripts for:
+
+1. EDGAR client and project setup
+2. AWS foundation
+3. Discovery to S3 and SQS
+4. Idempotent filing ingestion
+5. HTML parsing and curated storage
+6. BM25 retrieval
+7. Titan dense retrieval
+8. Hybrid retrieval and reranking
+9. Grounded QA
+10. Bounded critique and revision
+11. FastAPI packaging
+12. ECS Fargate deployment
+13. Feedback, observability, and cost controls
+14. CloudFront security and GitHub OIDC deployment
+15. Portfolio release and operational verification
+
+The operational runbook is maintained separately from the Git repository so local credentials and environment-specific commands are not published.
+
+## Deployment and cost controls
+
+Terraform keeps the ECS service at a desired count of zero by default. The deployment workflow starts one task, runs protected smoke tests, and returns the service to zero unless explicitly instructed to leave it running.
+
+```bash
+./scripts/resume_day14_api.sh
+./scripts/pause_day14_api.sh
+```
+
+The public serving layer can still incur ALB, public IPv4, CloudFront request, storage, log, metric, alarm, and Secrets Manager charges. Review [docs/security_and_cost_controls.md](docs/security_and_cost_controls.md) before leaving the environment deployed.
+
+## Security design
+
+- `/v1/answer` and `/v1/feedback` require `X-API-Key`
+- The API key is stored in Secrets Manager and injected through the ECS task definition
+- GitHub Actions assumes an AWS role through repository-and-environment-scoped OIDC
+- The ALB accepts origin traffic from the CloudFront managed prefix list
+- Direct public access to the Fargate task is blocked by security-group rules
+- Raw credentials, Terraform state, local data, and virtual environments are excluded from Git
+
+## Known limitations
+
+- Citigroup remains experimental because its 2025 10-K exposed title-only headings such as `RISK FACTORS` rather than numbered SEC item headings in the extracted visible text.
+- The current production corpus is intentionally limited to JPMorgan Chase and Bank of America.
+- The active retrieval benchmark has 18 questions. The latest QA and bounded-agent evaluations cover q001 through q015 and should be rerun before making claims about all 18 questions.
+- The serving stack must be recreated if Terraform state and AWS resources drift after a partial apply or manual deletion.
+- CloudFront provides public HTTPS, while the current CloudFront-to-ALB origin connection uses HTTP inside an origin-restricted path. End-to-end TLS requires a custom domain and ACM certificate.
+
+See [docs/known_limitations.md](docs/known_limitations.md).
+
+## Portfolio materials
+
+- [Architecture](docs/architecture.md)
+- [Evaluation summary](docs/evaluation_summary.md)
+- [Three-minute demo](docs/demo_script.md)
+- [Security and cost controls](docs/security_and_cost_controls.md)
+- [Resume, LinkedIn, and interview material](docs/portfolio_materials.md)
+- [Release checklist](docs/release_checklist.md)
+
+## License and data
+
+SEC filings are public source documents retrieved from SEC EDGAR. This repository does not commit downloaded filings, generated corpora, embeddings, Terraform state, credentials, or API keys.

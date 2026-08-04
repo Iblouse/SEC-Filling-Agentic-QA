@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "derived_at": "2026-08-04",
+  "derivation": "Filtered per-query metrics from the supplied 24-question local evaluation outputs to the 18 question IDs currently committed in evaluation/sec_questions.jsonl.",
+  "active_question_count": 18,
+  "active_question_ids": [
+    "q001",
+    "q002",
+    "q003",
+    "q004",
+    "q005",
+    "q006",
+    "q007",
+    "q008",
+    "q009",
+    "q010",
+    "q011",
+    "q012",
+    "q013",
+    "q014",
+    "q015",
+    "q016",
+    "q020",
+    "q023"
+  ],
+  "issuer_counts": {
+    "0000019617": 13,
+    "0000070858": 5
+  },
+  "form_counts": {
+    "10-K": 5,
+    "10-Q": 6,
+    "8-K": 7
+  },
+  "systems": {
+    "bm25": {
+      "question_count": 18,
+      "recall_at_5": 0.4564814814814815,
+      "recall_at_10": 0.5152116402116402,
+      "mean_reciprocal_rank": 0.5833333333333334,
+      "ndcg_at_10": 0.520678281620701,
+      "configuration": {
+        "model": "bm25",
+        "k1": 1.5,
+        "b": 0.75,
+        "top_k": 10
+      }
+    },
+    "dense": {
+      "question_count": 18,
+      "recall_at_5": 0.4920634920634921,
+      "recall_at_10": 0.5707671957671958,
+      "mean_reciprocal_rank": 0.6666666666666666,
+      "ndcg_at_10": 0.6081985583457526,
+      "configuration": {
+        "model": "dense_cosine",
+        "embedding_model": "amazon.titan-embed-text-v2:0",
+        "dimensions": 512,
+        "normalize": true,
+        "top_k": 10
+      }
+    },
+    "hybrid_rrf": {
+      "question_count": 18,
+      "recall_at_5": 0.5105820105820106,
+      "recall_at_10": 0.5846560846560847,
+      "mean_reciprocal_rank": 0.6388888888888888,
+      "ndcg_at_10": 0.6084314494859778,
+      "configuration": {
+        "model": "weighted_rrf",
+        "rrf_k": 60,
+        "bm25_weight": 1.0,
+        "dense_weight": 1.0,
+        "candidate_k": 20,
+        "top_k": 10
+      }
+    },
+    "hybrid_reranked": {
+      "question_count": 18,
+      "recall_at_5": 0.4894179894179895,
+      "recall_at_10": 0.5674603174603174,
+      "mean_reciprocal_rank": 0.6111111111111112,
+      "ndcg_at_10": 0.5695724223490765,
+      "configuration": {
+        "model": "weighted_rrf_then_bedrock_rerank",
+        "reranker_model": "cohere.rerank-v3-5:0",
+        "rrf_k": 60,
+        "bm25_weight": 1.0,
+        "dense_weight": 1.0,
+        "candidate_k": 20,
+        "rerank_candidates": 20,
+        "top_k": 10
+      }
+    }
+  }
+}

@@ -7,8 +7,8 @@ test:
 	pytest --cov=edgar_qa --cov-report=term-missing
 
 lint:
-	ruff check .
-	ruff format --check .
+	ruff check src tests
+	ruff format --check src tests
 
 typecheck:
 	mypy src

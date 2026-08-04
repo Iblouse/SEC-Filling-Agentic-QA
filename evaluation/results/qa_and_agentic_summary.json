@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "derived_at": "2026-08-04",
+  "scope_note": "The supplied answer-generation evaluations cover q001 through q015. The active benchmark now contains 18 questions, so these results are historical release evidence rather than a full current-benchmark rerun.",
+  "grounded_qa_day09": {
+    "evaluated_at": "2026-07-27T15:32:48.966007Z",
+    "question_count": 15,
+    "answered_count": 10,
+    "abstention_rate": 0.3333333333333333,
+    "citation_validity_rate": 0.9333333333333333,
+    "gold_evidence_hit_rate": 0.6,
+    "mean_cited_gold_precision": 0.5422222222222222,
+    "mean_cited_gold_recall": 0.2557142857142857,
+    "model_id": "us.amazon.nova-2-lite-v1:0",
+    "configuration": {
+      "retrieval": "weighted_rrf_then_bedrock_rerank",
+      "candidate_k": 20,
+      "rerank_candidates": 10,
+      "evidence_k": 5,
+      "rrf_k": 60,
+      "bm25_weight": 1.0,
+      "dense_weight": 1.0,
+      "dimensions": 512
+    }
+  },
+  "bounded_agent_day10": {
+    "evaluated_at": "2026-07-27T16:33:57.333009Z",
+    "question_count": 15,
+    "revised_count": 3,
+    "revision_rate": 0.2,
+    "initial_critic_accept_rate": 0.8666666666666667,
+    "final_critic_accept_rate": 0.8666666666666667,
+    "unresolved_after_revision_rate": 0.2,
+    "initial_citation_validity_rate": 0.9333333333333333,
+    "final_citation_validity_rate": 0.8666666666666667,
+    "initial_gold_evidence_hit_rate": 0.5333333333333333,
+    "final_gold_evidence_hit_rate": 0.5333333333333333,
+    "initial_mean_cited_gold_precision": 0.49777777777777776,
+    "final_mean_cited_gold_precision": 0.49777777777777776,
+    "initial_mean_cited_gold_recall": 0.22904761904761903,
+    "final_mean_cited_gold_recall": 0.22904761904761903,
+    "mean_model_calls": 2.4,
+    "mean_model_tokens": 3811.2,
+    "generator_model_id": "us.amazon.nova-2-lite-v1:0",
+    "critic_model_id": "us.amazon.nova-2-lite-v1:0",
+    "revision_model_id": "us.amazon.nova-2-lite-v1:0",
+    "configuration": {
+      "workflow": "generate_critique_optional_single_revision_final_critique",
+      "max_revisions": 1,
+      "candidate_k": 20,
+      "rerank_candidates": 10,
+      "evidence_k": 5,
+      "rrf_k": 60,
+      "bm25_weight": 1.0,
+      "dense_weight": 1.0,
+      "dimensions": 512
+    }
+  },
+  "engineering_conclusion": "The bounded critique workflow added explicit review and a single controlled revision path, but it did not improve aggregate citation or gold-evidence metrics on the supplied 15-question evaluation. The release presents it as a safety and observability mechanism, not as a quality-improvement claim."
+}

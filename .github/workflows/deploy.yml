@@ -20,7 +20,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     environment: production
 
     env:
@@ -45,16 +45,29 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           role-session-name: sec-qa-${{ github.run_id }}
 
+      - name: Verify ECS deployment target exists
+        shell: bash
+        run: |
+          STATUS="$(
+            aws ecs describe-services \
+              --cluster "$ECS_CLUSTER" \
+              --services "$ECS_SERVICE" \
+              --query 'services[0].status' \
+              --output text
+          )"
+
+          if [[ "$STATUS" != "ACTIVE" ]]; then
+            echo "ECS service $ECS_CLUSTER/$ECS_SERVICE is not ACTIVE." >&2
+            echo "Repair Terraform drift before running this workflow." >&2
+            exit 1
+          fi
+
       - name: Authenticate Docker to ECR
         shell: bash
         run: |
           REGISTRY="${ECR_REPOSITORY_URL%%/*}"
-          aws ecr get-login-password \
-            --region "$AWS_REGION" |
-          docker login \
-            --username AWS \
-            --password-stdin \
-            "$REGISTRY"
+          aws ecr get-login-password --region "$AWS_REGION" |
+          docker login --username AWS --password-stdin "$REGISTRY"
 
       - name: Build and push immutable image
         id: image
@@ -73,7 +86,7 @@ jobs:
           echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
           echo "tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Download and render current task definition
+      - name: Render current task definition with new image
         shell: bash
         run: |
           aws ecs describe-task-definition \
@@ -104,7 +117,6 @@ jobs:
             > task-definition.rendered.json
 
       - name: Register and deploy task definition
-        id: task
         shell: bash
         run: |
           TASK_DEFINITION_ARN="$(
@@ -121,15 +133,13 @@ jobs:
             --desired-count 1 \
             >/dev/null
 
-          echo "arn=$TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
-
       - name: Wait for ECS stability
         run: |
           aws ecs wait services-stable \
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_SERVICE"
 
-      - name: Run protected deployment smoke test
+      - name: Run protected answer and feedback smoke tests
         shell: bash
         run: |
           curl \
@@ -154,6 +164,7 @@ jobs:
           )"
           test "$STATUS" = "401"
 
+          REQUEST_ID="gha-${GITHUB_RUN_ID}"
           RESPONSE="$(
             curl \
               --fail \
@@ -163,7 +174,7 @@ jobs:
               "$API_BASE_URL/v1/answer" \
               -H 'Content-Type: application/json' \
               -H "X-API-Key: $SEC_QA_API_KEY" \
-              -H "X-Request-ID: gha-${GITHUB_RUN_ID}" \
+              -H "X-Request-ID: $REQUEST_ID" \
               -d '{
                 "question": "What cybersecurity risks did Bank of America disclose in Item 1A?",
                 "filters": {
@@ -180,6 +191,27 @@ jobs:
             and (.citations | length) > 0
             and all(.citations[]; .cik == "0000070858")
           ' >/dev/null
+
+          FEEDBACK="$(
+            jq -n --arg request_id "$REQUEST_ID" '{
+              request_id: $request_id,
+              helpful: true,
+              reason: "relevant",
+              comment: "GitHub deployment smoke test."
+            }'
+          )"
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            -X POST \
+            "$API_BASE_URL/v1/feedback" \
+            -H 'Content-Type: application/json' \
+            -H "X-API-Key: $SEC_QA_API_KEY" \
+            -H "X-Request-ID: gha-feedback-${GITHUB_RUN_ID}" \
+            -d "$FEEDBACK" |
+          jq -e '.status == "accepted"' >/dev/null
 
       - name: Record accepted image tag
         run: |

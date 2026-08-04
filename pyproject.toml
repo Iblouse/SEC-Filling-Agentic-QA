@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sec-filing-agentic-qa"
-version = "0.1.0"
+version = "1.0.0"
 description = "Production-oriented semantic search and agentic QA over SEC filings."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,7 +26,6 @@ dev = [
   "pytest-cov>=5,<7",
   "ruff>=0.6,<1",
   "mypy>=1.11,<2",
-  "httpx2>=2.7,<3",
 ]
 
 [project.scripts]
