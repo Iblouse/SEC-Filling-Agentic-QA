@@ -114,6 +114,19 @@ data "aws_iam_policy_document" "github_deploy" {
       values   = ["ecs-tasks.amazonaws.com"]
     }
   }
+
+  statement {
+    sid = "ReadCloudFrontDeploymentEndpoint"
+
+    actions = [
+      "cloudfront:GetDistribution",
+    ]
+
+    resources = [
+      aws_cloudfront_distribution.api[0].arn,
+    ]
+  }
+
 }
 
 resource "aws_iam_role_policy" "github_deploy" {
