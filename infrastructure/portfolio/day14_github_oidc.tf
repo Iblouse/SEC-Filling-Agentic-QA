@@ -127,6 +127,19 @@ data "aws_iam_policy_document" "github_deploy" {
     ]
   }
 
+
+  statement {
+    sid = "RecordAcceptedImageTag"
+
+    actions = [
+      "ssm:PutParameter",
+    ]
+
+    resources = [
+      aws_ssm_parameter.api_image_tag.arn,
+    ]
+  }
+
 }
 
 resource "aws_iam_role_policy" "github_deploy" {
