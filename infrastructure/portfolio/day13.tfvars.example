@@ -1,6 +1,0 @@
-# Day 13 feedback and observability settings
-api_feedback_ttl_days  = 90
-api_feedback_enable_pitr = false
-api_metrics_namespace  = "SECQA"
-api_environment        = "portfolio"
-api_alarm_sns_topic_arn = ""

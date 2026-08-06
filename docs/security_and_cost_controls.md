@@ -26,7 +26,7 @@
 
 - `api_desired_count` defaults to zero.
 - The deployment workflow starts one Fargate task for validation and returns it to zero unless `leave_running=true` is explicitly selected.
-- `scripts/day15_demo.sh` installs a cleanup trap that attempts to return the service to zero even when a smoke test fails.
+- `scripts/demo.sh` installs a cleanup trap that attempts to return the service to zero even when a smoke test fails.
 - DynamoDB uses on-demand billing and TTL.
 - Runtime artifacts remain in S3 and container images remain in ECR.
 

@@ -13,7 +13,7 @@ if git ls-files | grep -Eq '(^|/)(\.env|terraform\.tfstate|terraform\.tfvars|api
   exit 1
 fi
 
-if git grep -nEI "$patterns" -- . ':!docs' ':!*.example' ':!scripts/day15_security_scan.sh'; then
+if git grep -nEI "$patterns" -- . ':!docs' ':!*.example' ':!scripts/security_scan.sh'; then
   echo "FAIL: review potential credential material above." >&2
   exit 1
 fi

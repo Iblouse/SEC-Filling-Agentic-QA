@@ -49,6 +49,6 @@ aws ecs wait services-stable \
   --cluster "$CLUSTER" \
   --services "$SERVICE"
 
-./scripts/smoke_test_day14.sh
+./scripts/smoke_test_api.sh
 
 printf '\nDemo smoke test passed. The cleanup trap will pause ECS.\n'

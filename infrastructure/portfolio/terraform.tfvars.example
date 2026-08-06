@@ -1,10 +1,60 @@
-aws_region  = "us-east-1"
+aws_region   = "us-east-1"
 project_name = "sec-filing-agentic-qa"
 owner        = "ibrahima"
 
-log_retention_days = 14
+log_retention_days    = 14
 force_destroy_buckets = true
 
 enable_monthly_budget = false
-monthly_budget_usd     = 25
-budget_email           = ""
+monthly_budget_usd    = 25
+budget_email          = ""
+
+
+# -----------------------------------------------------------------------------
+# API deployment, observability, security, and GitHub Actions examples
+# Consolidated from the former day-specific tfvars example files.
+# -----------------------------------------------------------------------------
+
+api_image_tag = "day12-REPLACE_WITH_UNIQUE_TAG"
+
+api_artifact_prefix = "runtime/api"
+
+api_desired_count = 1
+
+api_cpu = 1024
+
+api_memory = 2048
+
+api_enable_container_insights = false
+
+# For a private demo, replace 0.0.0.0/0 with your current public IPv4 /32.
+
+api_ingress_cidrs = ["0.0.0.0/0"]
+
+api_feedback_ttl_days = 90
+
+api_feedback_enable_pitr = false
+
+api_metrics_namespace = "SECQA"
+
+api_environment = "portfolio"
+
+api_alarm_sns_topic_arn = ""
+
+api_edge_enabled = true
+
+api_disable_docs = true
+
+api_key_recovery_window_days = 7
+
+# Keep the service paused after Terraform applies.
+
+github_actions_enabled = true
+
+github_repository = "YOUR_GITHUB_USERNAME/SEC-Filing-Agentic-QA"
+
+github_environment = "production"
+
+# Leave empty unless the AWS account already has a GitHub OIDC provider.
+
+github_oidc_provider_arn = ""
