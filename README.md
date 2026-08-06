@@ -135,35 +135,31 @@ edgar-qa submissions \
   --output data/raw/jpmorgan-submissions.json
 ```
 
-## Reproducing the build
+## System components
 
-The repository includes day-specific design notes and scripts for:
-
-1. EDGAR client and project setup
-2. AWS foundation
-3. Discovery to S3 and SQS
-4. Idempotent filing ingestion
-5. HTML parsing and curated storage
-6. BM25 retrieval
-7. Titan dense retrieval
-8. Hybrid retrieval and reranking
-9. Grounded QA
-10. Bounded critique and revision
-11. FastAPI packaging
-12. ECS Fargate deployment
-13. Feedback, observability, and cost controls
-14. CloudFront security and GitHub OIDC deployment
-15. Portfolio release and operational verification
-
-The operational runbook is maintained separately from the Git repository so local credentials and environment-specific commands are not published.
-
+- Controlled SEC EDGAR discovery and ingestion
+- Deterministic SQS jobs and idempotent workers
+- Immutable raw and curated S3 storage
+- Filing-aware parsing with stable source and chunk identifiers
+- BM25 lexical retrieval
+- Amazon Titan dense retrieval
+- Weighted reciprocal-rank fusion
+- Evidence-bounded answer generation with Amazon Nova
+- Citation validation and explicit abstention
+- Bounded critique with at most one revision
+- Protected FastAPI service on ECS Fargate
+- CloudFront and Application Load Balancer delivery
+- DynamoDB feedback with TTL
+- CloudWatch logs, metrics, dashboards, and alarms
+- Terraform infrastructure and GitHub Actions OIDC deployment
+- Immutable ECR releases and scale-to-zero cost controls
 ## Deployment and cost controls
 
 Terraform keeps the ECS service at a desired count of zero by default. The deployment workflow starts one task, runs protected smoke tests, and returns the service to zero unless explicitly instructed to leave it running.
 
 ```bash
-./scripts/resume_day14_api.sh
-./scripts/pause_day14_api.sh
+./scripts/resume_api.sh
+./scripts/pause_api.sh
 ```
 
 The public serving layer can still incur ALB, public IPv4, CloudFront request, storage, log, metric, alarm, and Secrets Manager charges. Review [docs/security_and_cost_controls.md](docs/security_and_cost_controls.md) before leaving the environment deployed.
@@ -179,7 +175,6 @@ The public serving layer can still incur ALB, public IPv4, CloudFront request, s
 
 ## Known limitations
 
-- Citigroup remains experimental because its 2025 10-K exposed title-only headings such as `RISK FACTORS` rather than numbered SEC item headings in the extracted visible text.
 - The current production corpus is intentionally limited to JPMorgan Chase and Bank of America.
 - The active retrieval benchmark has 18 questions. The latest QA and bounded-agent evaluations cover q001 through q015 and should be rerun before making claims about all 18 questions.
 - The serving stack must be recreated if Terraform state and AWS resources drift after a partial apply or manual deletion.

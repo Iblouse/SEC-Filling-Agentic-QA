@@ -4,7 +4,7 @@
 
 1. Confirm the ECS service exists and is paused.
 2. Confirm the local API-key file is readable.
-3. Run `./scripts/day15_demo.sh`. The script starts one task, runs the protected smoke tests, and pauses the service on exit.
+3. Run `./scripts/demo.sh`. The script starts one task, runs the protected smoke tests, and pauses the service on exit.
 4. Open the GitHub Actions page, CloudWatch dashboard, and DynamoDB table in separate browser tabs.
 
 ## Minute 0:00 to 0:35, problem and architecture
