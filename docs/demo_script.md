@@ -1,71 +1,94 @@
-# Three-Minute Demo Script
+# Demonstrating the SEC Filing Agentic QA API
 
-## Preparation
+The demonstration workflow separates infrastructure validation from the
+question shown during an interview.
 
-1. Confirm the ECS service exists and is paused.
-2. Confirm the local API-key file is readable.
-3. Run `./scripts/demo.sh`. The script starts one task, runs the protected smoke tests, and pauses the service on exit.
-4. Open the GitHub Actions page, CloudWatch dashboard, and DynamoDB table in separate browser tabs.
+## Before the interview
 
-## Minute 0:00 to 0:35, problem and architecture
+Start the API and confirm that it is ready:
 
-> SEC filings contain valuable risk, capital, liquidity, governance, and event disclosures, but they are long, structurally inconsistent, and difficult to search reliably. I built a production-oriented system that ingests real SEC filings, benchmarks retrieval, generates evidence-bounded answers, validates citations, records feedback, and deploys securely on AWS.
+```bash
+./scripts/resume_api.sh
+./scripts/status_api.sh
+./scripts/smoke_test_api.sh
+```
 
-Show `docs/architecture.svg` and point to:
+The smoke test validates the production API, authentication, grounded-answer
+path, citations, feedback endpoint, and deployment state. It is not tied to a
+development day or release stage.
 
-- EDGAR ingestion through SQS and immutable S3 storage
-- BM25 plus Titan dense retrieval and weighted RRF
-- Nova answer generation and bounded critique
-- FastAPI on Fargate behind CloudFront
-- DynamoDB feedback, CloudWatch observability, and GitHub OIDC deployment
+## List available questions
 
-## Minute 0:35 to 1:35, successful grounded answer
+The interactive demonstration reads questions from the active evaluation
+catalog:
 
-Ask:
+```bash
+./scripts/demo.sh --list
+```
+
+## Select a question interactively
+
+```bash
+./scripts/demo.sh
+```
+
+The script displays the available benchmark questions and prompts you to select
+one.
+
+Enter `0` to provide a custom question.
+
+## Run a question by number
+
+```bash
+./scripts/demo.sh --index 1
+```
+
+Use the number displayed by:
+
+```bash
+./scripts/demo.sh --list
+```
+
+## Enter a custom question
+
+```bash
+./scripts/demo.sh --custom
+```
+
+The script prompts for:
+
+- Question
+- Issuer or CIK
+- Filing form
+- Optional section label
+
+## Saved response
+
+The complete response is saved to:
 
 ```text
-What cybersecurity risks did Bank of America disclose in Item 1A?
+/tmp/sec-qa-demo-response.json
 ```
 
-Use filters:
+Display the saved response as an offline fallback:
 
-```json
-{
-  "cik": "0000070858",
-  "form": "10-K",
-  "section_label": "item-1a"
-}
+```bash
+jq . /tmp/sec-qa-demo-response.json
 ```
 
-Show that the response contains:
+## After the interview
 
-- `abstained: false`
-- one or more citations
-- Bank of America CIK on every citation
-- filing accession and section metadata
-- excerpts that can be inspected directly
-- model-call count and latency
+Return the API to zero running tasks:
 
-## Minute 1:35 to 2:10, bounded behavior
+```bash
+./scripts/pause_api.sh
+./scripts/status_api.sh
+```
 
-Explain:
+The expected final ECS state is:
 
-> The model does not have an open-ended agent loop. It receives a bounded evidence set, generates an answer, undergoes citation validation and critique, and may revise at most once. If the evidence remains insufficient, it returns an abstention or unresolved state rather than continuing indefinitely.
-
-Use an unsupported issuer or deliberately mismatched filing filter to demonstrate insufficient evidence when the service is configured for the test.
-
-## Minute 2:10 to 2:35, feedback and observability
-
-Submit feedback linked to the answer request ID. Show:
-
-- HTTP 201 accepted response
-- DynamoDB item with helpful flag, reason, timestamp, and TTL
-- CloudWatch request, answer, and feedback metrics
-
-## Minute 2:35 to 3:00, evaluation and deployment
-
-Show `docs/evaluation_summary.md`:
-
-> Weighted hybrid retrieval achieved the best Recall@10 and nDCG@10 on the active two-issuer benchmark. Dense retrieval achieved the best MRR. The Cohere reranking stage and the critique loop did not improve every aggregate metric, and I documented those regressions rather than hiding them.
-
-Finish with the GitHub Actions workflow and explain that it uses OIDC, immutable ECR image tags, protected smoke tests, and automatic scale-down to zero.
+```text
+desired: 0
+running: 0
+pending: 0
+```

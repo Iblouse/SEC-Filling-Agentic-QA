@@ -81,7 +81,7 @@ FEEDBACK_RESPONSE="$(
       "request_id": "day14-answer-smoke-001",
       "helpful": true,
       "reason": "relevant",
-      "comment": "Day 14 protected endpoint smoke test."
+      "comment": "Production API protected endpoint smoke test."
     }'
 )"
 
@@ -101,4 +101,4 @@ if curl \
   exit 1
 fi
 
-printf 'Day 14 security assertions passed: HTTPS edge, API key, citations, feedback, origin blocked.\n'
+printf 'Production API security assertions passed: HTTPS edge, API key, citations, feedback, origin blocked.\n'
