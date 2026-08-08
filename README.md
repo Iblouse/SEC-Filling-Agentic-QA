@@ -25,7 +25,7 @@ A production-oriented retrieval and grounded question-answering system for publi
 
 ## Architecture
 
-![SEC Filing Agentic QA architecture](docs/architecture.svg)
+![SEC Filing Agentic QA production architecture](ArchitectureDiagram.png)
 
 The end-to-end flow is documented in [docs/architecture.md](docs/architecture.md).
 
