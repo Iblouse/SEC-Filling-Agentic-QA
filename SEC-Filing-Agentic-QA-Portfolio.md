@@ -39,22 +39,6 @@ Target workflows: investment research, credit analysis, enterprise risk, complia
 
 ![SEC Filing Agentic QA production architecture](ArchitectureDiagram.png)
 
-```text
-SEC EDGAR
-  -> discovery manifests and deterministic SQS jobs
-  -> idempotent filing download and immutable S3 storage
-  -> HTML parsing into stable sections, tables, and chunks
-  -> BM25 plus Amazon Titan dense retrieval
-  -> weighted reciprocal-rank fusion
-  -> optional Cohere reranking
-  -> Amazon Nova grounded answer generation
-  -> citation validation
-  -> bounded critique and zero or one revision
-  -> final answer with citations or explicit abstention
-  -> protected FastAPI service on AWS
-  -> feedback, metrics, alarms, and release-state tracking
-```
-
 Source preservation, retrieval, model reasoning, serving, and operations are separated so each stage is measurable, replaceable, and auditable.
 
 ---
