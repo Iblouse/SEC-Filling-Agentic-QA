@@ -37,7 +37,7 @@ Target workflows: investment research, credit analysis, enterprise risk, complia
 
 ## Architecture
 
-![SEC Filing Agentic QA production architecture](assets/sec-filing-agentic-qa-architecture.png)
+![SEC Filing Agentic QA production architecture](Gemini_Generated_Image_12o4pu12o4pu12o4.png)
 
 ```text
 SEC EDGAR
