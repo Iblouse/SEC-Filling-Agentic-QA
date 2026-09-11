@@ -5,7 +5,7 @@
 variable "api_image_tag" {
   description = "Immutable ECR image tag deployed by the API service."
   type        = string
-  default     = "day12"
+  default     = "bootstrap"
 }
 
 variable "api_artifact_prefix" {

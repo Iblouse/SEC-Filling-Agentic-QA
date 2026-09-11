@@ -15,7 +15,7 @@ budget_email          = ""
 # Consolidated from the former day-specific tfvars example files.
 # -----------------------------------------------------------------------------
 
-api_image_tag = "day12-REPLACE_WITH_UNIQUE_TAG"
+api_image_tag = "bootstrap-REPLACE_WITH_UNIQUE_TAG"
 
 api_artifact_prefix = "runtime/api"
 
